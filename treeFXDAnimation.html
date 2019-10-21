@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <!-- Load D3 from site -->
+    <script src="https://d3js.org/d3.v4.js"></script>
+  </head>
+ 
+    <style type="text/css">
+
+      #button {
+        position:absolute;
+        top: 700px;
+        left: 700px;
+        background: #f08080;
+        color: white;
+        width: 60px;
+        height: 30px;
+      }
+
+      svg {
+        background: url('http://web.csulb.edu/~013500433/cecs450project1/Tree.png');
+        background-position: 15px 55px;
+        background-size: 650px 470px;
+        background-repeat: no-repeat;
+      }
+
+      .progressBar {
+        stroke: rgb(150, 150, 150);
+        stroke-opacity: 0.3;
+        stroke-width: 10px;
+      }
+
+      .progress {
+        pointer-events: stroke;
+        stroke-width: 50px;
+        stroke: transparent;
+      }
+
+      .mark {
+        fill: #fff;
+        stroke: #000;
+        stroke-opacity: 0.5;
+      }
+            
+    </style>
+ 
+  <body>
+
+      <div id="treeFXD"></div>
+      <button id="button">Start</button>
+  
+  <!-- Begin D3 Javascript -->
+  <script type="text/javascript">
+
+    var start = 0;
+    var end = 1166;
+    var width = 800;
+    var height = 600;
+
+    var run = false;
+    var position = 0;
+    var target = width;
+
+    var svg = d3.select("#treeFXD")
+      .append("svg")
+        .attr("width", width )
+        .attr("height", height)
+      .append("g")
+    
+    var startButton = d3.select("#button");
+           
+    var x = d3.scaleTime()
+        .domain([start, end])
+        .range([0, target])
+        .clamp(true);
+
+    var slider = svg.append("g")
+        .attr("class", "slider")
+        .attr("transform", "translate(" + 10 + "," + 580 + ")");
+
+    slider.append("line")
+        .attr("class", "progressBar")
+        .attr("x1", x.range()[0])
+        .attr("x2", x.range()[1])
+      .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+      .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+        .attr("class", "progress")
+        .call(d3.drag()
+            .on("start.interrupt", function() { slider.interrupt(); })
+            .on("start drag", function() {
+              position = d3.event.x;
+              plotPoints(x.invert(position)); 
+            })
+        );
+
+    slider.insert("g", ".progress")
+        .attr("class", "ticks")
+        .attr("transform", "translate(0," + 18 + ")")
+      .selectAll("text")
+        .data(x.ticks(10))
+        .enter()
+        .append("text")
+        .attr("x", x)
+        .attr("y", 10)
+
+    var mark = slider.insert("circle", ".progress")
+        .attr("class", "mark")
+        .attr("r", 9);
+    
+    var dataset;
+
+    var scatterPlot = svg.append("g")
+    .attr("class", "scatterPlot")
+    .attr("transform", "translate(" + 0 + "," + 0 + ")");
+
+    d3.csv("https://matthewszeto.com/processedtreeFXD.csv", function(data){
+
+      dataset = data;
+
+    startButton
+      .on("click", function() {
+      var button = d3.select(this);
+      if (button.text() == "Stop") {
+        run = false;
+        clearInterval(interval);
+        button.text("Start");
+      } else {
+        run = true;
+        interval = setInterval(increase, 100);
+        button.text("Stop");
+      }
+      console.log("Slider run: " + run);
+      })
+
+    });
+
+  function increase() {
+    plotPoints(x.invert(position));
+    position = position + (target/1166);
+    if (position > target) {
+      run = false;
+      position = 0;
+      clearInterval(interval);
+      startButton.text("Start");
+      console.log("Slider run: " + run);
+    }
+  }
+
+  function drawLine(data) {
+    data.forEach(function(d){
+        d.X = +d.X;
+        d.Y = +d.Y;
+        d.Duration = +d.Duration;
+        d.Number = +d.Number;
+      });
+
+      var valueline = d3.line()
+        .x(function(d) { return x(d.X); })
+        .y(function(d) { return y(d.Y); });
+
+      var x = d3.scaleLinear()
+         .domain([0, 1600])
+         .range([ 0, width ]);
+      
+      var y = d3.scaleLinear()
+         .domain([1200, 0])
+         .range([ height, 0]);
+
+      var paths = scatterPlot.selectAll(".path").data(data);
+      paths.enter()
+        .append("path")
+        .data([data])
+        .attr("class", "line")
+        .attr("fill", "none")
+        .attr("stroke", "blue")
+        .attr("opacity", .5)
+        .attr("stroke-width", 1.5)
+        .attr("d", valueline);
+
+      paths.exit()
+        .remove();
+  }
+
+  function createScatterPlot(data) {
+
+    data.forEach(function(d){
+        d.X = +d.X;
+        d.Y = +d.Y;
+        d.Duration = +d.Duration;
+        d.Number = +d.Number;
+      });
+
+      var valueline = d3.line()
+        .x(function(d) { return x(d.X); })
+        .y(function(d) { return y(d.Y); });
+
+      var x = d3.scaleLinear()
+         .domain([0, 1600])
+         .range([ 0, width ]);
+
+      var y = d3.scaleLinear()
+         .domain([1200, 0])
+         .range([ height, 0]);
+
+      var dataPoints = scatterPlot.selectAll(".points").data(data);
+      dataPoints.enter()
+        .append("circle")
+        .attr("class", "points")
+        .attr("cx",function (d) {return x(d.X); } )
+        .attr("cy", function (d) { return y(d.Y); } )
+        .style("fill", function (d) { if(d.Duration < 120){ return "#A9BCFE";}if(d.Duration == 120){return "#6F8EFE";}if(d.Duration > 120){return "#1E52FF";}else{return "blue";}})
+        .style("opacity", 0.5)
+        .attr("r", 1)
+            .transition()
+            .duration(function(d) {return d.duration*100})
+            .attr("r", function (d) { return d.Duration/20 })
+
+      dataPoints.exit()
+        .remove();
+  }
+
+  function plotPoints(value) {
+    mark.attr("cx", x(value));
+    var newData = dataset.filter(function(d) {
+      return d.Number < value;
+    })
+  createScatterPlot(newData);
+  drawLine(newData);
+
+  d3.select(".path").remove();
+}
+
+  </script>
+  </body>
+</html>
